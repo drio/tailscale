@@ -40,6 +40,14 @@ var (
 	store    map[string]map[string]string
 )
 
+func saveOrUpdate(w http.ResponseWriter, nodeName, key, body string) {
+	if store[nodeName] == nil {
+		store[nodeName] = make(map[string]string)
+	}
+	store[nodeName][key] = string(body)
+	fmt.Fprintf(w, "%s %s saved.", nodeName, key)
+}
+
 func main() {
 	flag.Parse()
 	s := new(tsnet.Server)
@@ -100,17 +108,9 @@ func main() {
 			lines := strings.Split(string(body), "\n")
 			nn := who.Node.Name
 			if lines[0] == "-----BEGIN CERTIFICATE-----" {
-				if store[nn] == nil {
-					store[nn] = make(map[string]string)
-					store[nn]["cert"] = string(body)
-				}
-				fmt.Fprintf(w, "%s %s", nn, "cert saved")
+				saveOrUpdate(w, nn, "cert", string(body))
 			} else if lines[0] == "-----BEGIN PRIVATE KEY-----" {
-				if store[nn] == nil {
-					store[nn] = make(map[string]string)
-					store[nn]["key"] = string(body)
-				}
-				fmt.Fprintf(w, "%s %s", nn, "key!")
+				saveOrUpdate(w, nn, "key", string(body))
 			} else {
 				http.Error(w, "Please, provide a cert or a key", http.StatusInternalServerError)
 			}
