@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/peterbourgon/ff/v3/ffcli"
 	"software.sslmate.com/src/go-pkcs12"
@@ -34,6 +35,7 @@ var certCmd = &ffcli.Command{
 		fs.StringVar(&certArgs.certFile, "cert-file", "", "output cert file or \"-\" for stdout; defaults to DOMAIN.crt if --cert-file and --key-file are both unset")
 		fs.StringVar(&certArgs.keyFile, "key-file", "", "output key file or \"-\" for stdout; defaults to DOMAIN.key if --cert-file and --key-file are both unset")
 		fs.BoolVar(&certArgs.serve, "serve-demo", false, "if true, serve on port :443 using the cert as a demo, instead of writing out the files to disk")
+		fs.IntVar(&certArgs.toSecs, "timeoutSecs", 0, "if bigger than 0, will timeout the request to get the certs")
 		return fs
 	})(),
 }
@@ -42,6 +44,7 @@ var certArgs struct {
 	certFile string
 	keyFile  string
 	serve    bool
+	toSecs   int
 }
 
 func runCert(ctx context.Context, args []string) error {
@@ -102,10 +105,17 @@ func runCert(ctx context.Context, args []string) error {
 		certArgs.certFile = domain + ".crt"
 		certArgs.keyFile = domain + ".key"
 	}
+
+	if certArgs.toSecs > 0 {
+		ctxWithTimeout, cancel := context.WithTimeout(ctx, time.Duration(certArgs.toSecs)*time.Second)
+		ctx = ctxWithTimeout
+		defer cancel()
+	}
 	certPEM, keyPEM, err := localClient.CertPair(ctx, domain)
 	if err != nil {
 		return err
 	}
+
 	needMacWarning := version.IsSandboxedMacOS()
 	macWarn := func() {
 		if !needMacWarning {
