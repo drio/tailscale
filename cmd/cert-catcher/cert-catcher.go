@@ -1,10 +1,24 @@
 // This tool stores certs and links them to nodes in the tailnet.
+//
+// It uses tsnet so we can query the tailnet to extract the name of
+// the host that makes the request and link the cert to it.
+//
 // Run the tool and then, from a node in the tailnet you can use
 // tailscale cert to generate a cert and then you can send it for
 // storage with:
 //
-// curl  --data-binary @/path/to/host.cert http://cert-cacher:9191/
-// curl  --data-binary @/path/to/host.pem http://cert-cacher:9191/
+// $ curl  --data-binary @/path/to/host.cert http://cert-cacher:9191/
+// $ curl  --data-binary @/path/to/host.pem http://cert-cacher:9191/
+//
+// The tool looks for the first line in the file to determine if the file
+// is a the cert or the private key.
+//
+// Other requests of the same type will update the cert.
+//
+// To retrieve the context of the cert:
+//
+// $ curl http://cert-cacher:9191/key
+// $ curl http://cert-cacher:9191/cert
 package main
 
 import (
