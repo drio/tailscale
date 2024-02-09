@@ -51,10 +51,9 @@ func main() {
 	defer s.Close()
 
 	var store Store
+	store = MemStore{}
 	if *saveToDisk == true {
 		store = DiskStore{}
-	} else {
-		store = MemStore{}
 	}
 	store.Init()
 
