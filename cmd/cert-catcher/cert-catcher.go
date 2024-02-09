@@ -1,4 +1,7 @@
 // This tool stores certs and links them to nodes in the tailnet.
+// Each cert has a key (private key) and a cert (signed public key)
+//
+// You can either store them in memory (default) or in disk (use -disk)
 //
 // It uses tsnet so we can query the tailnet to extract the name of
 // the host that makes the request and link the cert to it.
