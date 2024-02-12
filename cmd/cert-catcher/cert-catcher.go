@@ -51,9 +51,9 @@ func main() {
 	defer s.Close()
 
 	var store Store
-	store = MemStore{}
 	if *saveToDisk == true {
-		store = DiskStore{}
+	} else {
+		store = MemStore{}
 	}
 	store.Init()
 
@@ -74,7 +74,6 @@ func main() {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-
 		mu.Lock()
 		defer mu.Unlock()
 		nn := who.Node.Name
