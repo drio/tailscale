@@ -2,24 +2,29 @@
 #
 set -eu
 
+# run or print
+rop() {
+	local command=$*
+
+	if [ $PRINT_ONLY -eq 1 ]; then
+		echo "$command"
+	else
+		eval $command
+	fi
+}
+
 tsCert() {
-	echo <<EOF
-	tailscale cert $DOMAIN
-EOF
+	rop "tailscale cert $DOMAIN"
 }
 
 saveCerts() {
-	echo <<EOF
-	curl --data-binary @./"$domain".cert $BASE_CATCHER_URL
-	curl --data-binary @./"$domain".key $BASE_CATCHER_URL
-EOF
+	rop "curl --data-binary @./"$domain".cert $BASE_CATCHER_URL"
+	rop "curl --data-binary @./"$domain".key $BASE_CATCHER_URL"
 }
 
 getCert() {
-	echo <<EOF
-	curl $BASE_CATCHER_URL/cert >$DOMAIN.cert
-	curl $BASE_CATCHER_URL/key >$DOMAIN.key
-EOF
+	rop "curl $BASE_CATCHER_URL/cert >$DOMAIN.cert"
+	rop "curl $BASE_CATCHER_URL/key >$DOMAIN.key"
 }
 
 log() {
@@ -59,23 +64,26 @@ main() {
 MIN_DAYS=30
 BASE_CATCHER_URL="http://cert-cacher:9191"
 DOMAIN=""
+PRINT_ONLY=0
 
 usage() {
 	echo "Usage: $0 -d <domain> [-b <base_catcher_url> -m <min_days>]"
 	echo "  -d <domain>          : full domain. Example: machine.tailnet.net"
 	echo "  -b <base_catcher_url>: url to the catcher service ($BASE_CATCHER_URL)."
 	echo "  -m <min_days>        : A cert needs min_days before it expires otherwise we will request a new one"
+	echo "  -p                   : print cmds, do not execute them"
 	echo ""
-	echo "To download and execute:"
+	echo "To download and execute: "
 	echo "  curl -s http://localhost:8080/betterCert.sh | sh -s -- -d foo.tailnet.net -b http://foo:1234 -m 50"
 	exit 1
 }
 
-while getopts "b:d:m:" opt; do
+while getopts "b:d:m:p" opt; do
 	case $opt in
 	b) BASE_CATCHER_URL="$OPTARG" ;;
 	d) DOMAIN="$OPTARG" ;;
 	m) MIN_DAYS="$OPTARG" ;;
+	p) PRINT_ONLY=1 ;;
 	*) usage ;;
 	esac
 done
@@ -84,5 +92,7 @@ if [ ".$DOMAIN" == "." ]; then
 	echo "Not domain provided. Bailing out."
 	exit 1
 fi
+
+[ $PRINT_ONLY -eq 1 ] && log "-p enabled, printing cmds only"
 
 main $BASE_CATCHER_URL $MIN_DAYS
