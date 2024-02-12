@@ -24,6 +24,12 @@
 //
 // You can also check how many days before a cert expires:
 // $ curl http://cert-cacher:9191/days
+//
+// If you hit /sh via get the service will return a shell script that
+// you can use to automate the process of getting your certs. You can
+// just run:
+//
+// $ curl -s http://cert-cacher:9191/sh | sh -s -- -d m3.tailnet.net
 package main
 
 import (
