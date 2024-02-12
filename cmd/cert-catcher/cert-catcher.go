@@ -1,10 +1,9 @@
 // This tool stores certs and links them to nodes in the tailnet.
 // Each cert has a key (private key) and a cert (signed public key)
+// Since the tool listens on the tailnet interface we can be sure
+// that the request comes from a node in the tailnet.
 //
 // You can either store them in memory (default) or in disk (use -disk)
-//
-// It uses tsnet so we can query the tailnet to extract the name of
-// the host that makes the request and link the cert to it.
 //
 // Run the tool and then, from a node in the tailnet you can use
 // tailscale cert to generate a cert and then you can send it for
@@ -22,9 +21,14 @@
 //
 // $ curl http://cert-cacher:9191/key
 // $ curl http://cert-cacher:9191/cert
+//
+// You can also check how many days before a cert expires:
+// $ curl http://cert-cacher:9191/days
 package main
 
 import (
+	"crypto/x509"
+	"encoding/pem"
 	"flag"
 	"fmt"
 	"io"
@@ -33,6 +37,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"tailscale.com/tsnet"
 )
@@ -69,7 +74,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	log.Fatal(http.Serve(ln, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		who, err := lc.WhoIs(r.Context(), r.RemoteAddr)
 		if err != nil {
 			http.Error(w, err.Error(), 500)
@@ -79,10 +84,48 @@ func main() {
 		defer mu.Unlock()
 		nn := who.Node.Name
 
+		// serve the script that encapsulates the requests to this service
+		if r.URL.Path == "/sh" && r.Method == http.MethodGet {
+			filePath := "./getCacher.sh"
+			w.Header().Set("Content-Type", "application/x-sh")
+			http.ServeFile(w, r, filePath)
+			return
+		}
+
+		// If we have a cert, tell me how many days before it expires
+		if r.URL.Path == "/days" && r.Method == http.MethodGet {
+			certPEM, found := store.Get(nn, "/cert")
+			if !found {
+				http.NotFound(w, r)
+				return
+			}
+
+			block, _ := pem.Decode([]byte(certPEM))
+			if block == nil {
+				http.Error(w, fmt.Sprintf("Error decoding CERT: %v", err), http.StatusInternalServerError)
+				return
+			}
+
+			// Parse the certificate
+			cert, err := x509.ParseCertificate(block.Bytes)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("Error parsing CERT: %v", err), http.StatusInternalServerError)
+				return
+			}
+
+			now := time.Now()
+			diff := cert.NotAfter.Sub(now)
+			days := int(diff.Hours() / 24)
+
+			fmt.Fprintf(w, "%d\n", days)
+			return
+		}
+
+		// Get the cert or the key depending on the path
 		if r.Method == http.MethodGet {
 			path := r.URL.Path
 			if path != "/cert" && path != "/key" {
-				http.Error(w, fmt.Sprintf("invalid path=[%s] use /cert or /key paths", path), http.StatusBadGateway)
+				http.Error(w, fmt.Sprintf("invalid path=[%s] use /cert or /key paths", path), http.StatusBadRequest)
 				return
 			}
 
@@ -92,6 +135,9 @@ func main() {
 				return
 			}
 			fmt.Fprintf(w, "no %s for %s", path, nn)
+			http.NotFound(w, r)
+
+			// Store the cert or the key based ont he first line of the file the user is sending
 		} else if r.Method == http.MethodPost {
 			body, err := io.ReadAll(r.Body)
 			defer r.Body.Close()
@@ -111,7 +157,9 @@ func main() {
 			// Optionally handle other methods or return an error
 			http.Error(w, "Method not supported", http.StatusMethodNotAllowed)
 		}
-	})))
+	})
+
+	log.Fatal(http.Serve(ln, nil))
 }
 
 type Store interface {
