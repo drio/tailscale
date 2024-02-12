@@ -52,6 +52,7 @@ func main() {
 
 	var store Store
 	if *saveToDisk == true {
+		store = DiskStore{}
 	} else {
 		store = MemStore{}
 	}
